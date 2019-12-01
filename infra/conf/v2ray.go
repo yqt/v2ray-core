@@ -302,6 +302,7 @@ type Config struct {
 	Api             *ApiConfig             `json:"api"`
 	Stats           *StatsConfig           `json:"stats"`
 	Reverse         *ReverseConfig         `json:"reverse"`
+	Ratelimit       *RateLimitConfig       `json:"ratelimit"`
 }
 
 func applyTransportConfig(s *StreamConfig, t *TransportConfig) {
@@ -388,6 +389,14 @@ func (c *Config) Build() (*core.Config, error) {
 			return nil, err
 		}
 		config.App = append(config.App, serial.ToTypedMessage(r))
+	}
+
+	if c.Ratelimit != nil {
+		rl, err := c.Ratelimit.Build()
+		if err != nil {
+			return nil, err
+		}
+		config.App = append(config.App, serial.ToTypedMessage(rl))
 	}
 
 	var inbounds []InboundDetourConfig

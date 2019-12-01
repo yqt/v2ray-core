@@ -15,6 +15,7 @@ import (
 	"v2ray.com/core/features/inbound"
 	"v2ray.com/core/features/outbound"
 	"v2ray.com/core/features/policy"
+	"v2ray.com/core/features/ratelimit"
 	"v2ray.com/core/features/routing"
 	"v2ray.com/core/features/stats"
 )
@@ -190,6 +191,7 @@ func New(config *Config) (*Instance, error) {
 		{policy.ManagerType(), policy.DefaultManager{}},
 		{routing.RouterType(), routing.DefaultRouter{}},
 		{stats.ManagerType(), stats.NoopManager{}},
+		{ratelimit.ManagerType(), ratelimit.NoopManager{}},
 	}
 
 	for _, f := range essentialFeatures {

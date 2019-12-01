@@ -19,6 +19,7 @@ import (
 	"v2ray.com/core/common/session"
 	"v2ray.com/core/features/outbound"
 	"v2ray.com/core/features/policy"
+	"v2ray.com/core/features/ratelimit"
 	"v2ray.com/core/features/routing"
 	"v2ray.com/core/features/stats"
 	"v2ray.com/core/transport"
@@ -90,17 +91,18 @@ func (r *cachedReader) Interrupt() {
 
 // DefaultDispatcher is a default implementation of Dispatcher.
 type DefaultDispatcher struct {
-	ohm    outbound.Manager
-	router routing.Router
-	policy policy.Manager
-	stats  stats.Manager
+	ohm       outbound.Manager
+	router    routing.Router
+	policy    policy.Manager
+	stats     stats.Manager
+	ratelimit ratelimit.Manager
 }
 
 func init() {
 	common.Must(common.RegisterConfig((*Config)(nil), func(ctx context.Context, config interface{}) (interface{}, error) {
 		d := new(DefaultDispatcher)
-		if err := core.RequireFeatures(ctx, func(om outbound.Manager, router routing.Router, pm policy.Manager, sm stats.Manager) error {
-			return d.Init(config.(*Config), om, router, pm, sm)
+		if err := core.RequireFeatures(ctx, func(om outbound.Manager, router routing.Router, pm policy.Manager, sm stats.Manager, lm ratelimit.Manager) error {
+			return d.Init(config.(*Config), om, router, pm, sm, lm)
 		}); err != nil {
 			return nil, err
 		}
@@ -109,11 +111,12 @@ func init() {
 }
 
 // Init initializes DefaultDispatcher.
-func (d *DefaultDispatcher) Init(config *Config, om outbound.Manager, router routing.Router, pm policy.Manager, sm stats.Manager) error {
+func (d *DefaultDispatcher) Init(config *Config, om outbound.Manager, router routing.Router, pm policy.Manager, sm stats.Manager, lm ratelimit.Manager) error {
 	d.ohm = om
 	d.router = router
 	d.policy = pm
 	d.stats = sm
+	d.ratelimit = lm
 	return nil
 }
 
@@ -147,8 +150,10 @@ func (d *DefaultDispatcher) getLink(ctx context.Context) (*transport.Link, *tran
 
 	sessionInbound := session.InboundFromContext(ctx)
 	var user *protocol.MemoryUser
+	var inboundTag string
 	if sessionInbound != nil {
 		user = sessionInbound.User
+		inboundTag = sessionInbound.Tag
 	}
 
 	if user != nil && len(user.Email) > 0 {
@@ -171,6 +176,30 @@ func (d *DefaultDispatcher) getLink(ctx context.Context) (*transport.Link, *tran
 				}
 			}
 		}
+		if l := ratelimit.GetLimiter(d.ratelimit, "user:"+user.Email+":uplink"); l != nil {
+			inboundLink.Writer = &LimitWriter{
+				Limiter: l,
+				Writer:  inboundLink.Writer,
+			}
+		} else if l := ratelimit.GetLimiter(d.ratelimit, "inboundTag:"+inboundTag+":uplink"); l != nil {
+			inboundLink.Writer = &LimitWriter{
+				Limiter: l,
+				Writer:  inboundLink.Writer,
+			}
+		}
+
+		if l := ratelimit.GetLimiter(d.ratelimit, "user:"+user.Email+":downlink"); l != nil {
+			outboundLink.Writer = &LimitWriter{
+				Limiter: l,
+				Writer:  outboundLink.Writer,
+			}
+		} else if l := ratelimit.GetLimiter(d.ratelimit, "inboundTag:"+inboundTag+":downlink"); l != nil {
+			outboundLink.Writer = &LimitWriter{
+				Limiter: l,
+				Writer:  outboundLink.Writer,
+			}
+		}
+
 	}
 
 	return inboundLink, outboundLink

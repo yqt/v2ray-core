@@ -1,0 +1,24 @@
+syntax = "proto3";
+
+package v2ray.core.app.ratelimit;
+option csharp_namespace = "V2Ray.Core.App.Ratelimit";
+option go_package = "ratelimit";
+option java_package = "com.v2ray.core.app.Ratelimit";
+option java_multiple_files = true;
+
+message LimitSettings {
+    int64 up_rate = 1;
+    int64 up_capacity = 2;
+    int64 down_rate = 3;
+    int64 down_capacity = 4;
+}
+
+message LimitRule {
+    repeated string user_email = 1;
+    repeated string inbound_tag = 2;
+    LimitSettings settings = 3;
+}
+
+message Config {
+    repeated LimitRule rule = 1;
+}
