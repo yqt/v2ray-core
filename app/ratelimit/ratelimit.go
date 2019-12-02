@@ -39,14 +39,21 @@ func (l *Limiter) Clear() {
 	l.bucket = nil
 }
 
+type limitSetting struct {
+	rate     float64
+	capacity int64
+}
+
 type Manager struct {
 	access   sync.RWMutex
+	setting  map[string]*limitSetting
 	limiters map[string]*Limiter
 }
 
 func NewManager(ctx context.Context, config *Config) (*Manager, error) {
 	m := &Manager{
 		limiters: make(map[string]*Limiter),
+		setting:  make(map[string]*limitSetting),
 	}
 
 	for _, rule := range config.GetRule() {
@@ -67,10 +74,12 @@ func NewManager(ctx context.Context, config *Config) (*Manager, error) {
 					continue
 				}
 				limiterName := "user:" + userEmail + ":uplink"
-				m.RegisterLimiter(limiterName, float64(upRate), upCapacity)
+				m.addSetting(limiterName, float64(upRate), upCapacity)
+				//m.RegisterLimiter(limiterName, float64(upRate), upCapacity)
 
 				limiterName = "user:" + userEmail + ":downlink"
-				m.RegisterLimiter(limiterName, float64(downRate), downCapacity)
+				m.addSetting(limiterName, float64(downRate), downCapacity)
+				//m.RegisterLimiter(limiterName, float64(downRate), downCapacity)
 			}
 		}
 		if len(rule.GetInboundTag()) != 0 {
@@ -80,11 +89,13 @@ func NewManager(ctx context.Context, config *Config) (*Manager, error) {
 				}
 				if upRate > 0 {
 					limiterName := "inboundTag:" + inboundTag + ":uplink"
-					m.RegisterLimiter(limiterName, float64(upRate), upCapacity)
+					m.addSetting(limiterName, float64(upRate), upCapacity)
+					//m.RegisterLimiter(limiterName, float64(upRate), upCapacity)
 				}
 				if downRate > 0 {
 					limiterName := "inboundTag:" + inboundTag + ":downlink"
-					m.RegisterLimiter(limiterName, float64(downRate), downCapacity)
+					m.addSetting(limiterName, float64(downRate), downCapacity)
+					//m.RegisterLimiter(limiterName, float64(downRate), downCapacity)
 				}
 			}
 		}
@@ -93,28 +104,33 @@ func NewManager(ctx context.Context, config *Config) (*Manager, error) {
 	return m, nil
 }
 
-//func NewManager() (*Manager, error) {
-//	m := &Manager{
-//		limiters: make(map[string]*Limiter),
-//	}
-//
-//	return m, nil
-//}
-
 func (*Manager) Type() interface{} {
 	return ratelimit.ManagerType()
 }
 
-func (m *Manager) RegisterLimiter(name string, rate float64, capacity int64) (ratelimit.Limiter, error) {
+func (m *Manager) addSetting(name string, rate float64, capacity int64) error {
+	if _, found := m.setting[name]; found {
+		return newError("setting ", name, " already existed.")
+	}
+	ls := &limitSetting{rate: rate, capacity: capacity}
+	m.setting[name] = ls
+	return nil
+}
+
+func (m *Manager) RegisterLimiter(name string) (ratelimit.Limiter, error) {
 	m.access.Lock()
 	defer m.access.Unlock()
 
 	if _, found := m.limiters[name]; found {
 		return nil, newError("Limiter ", name, " already registered.")
 	}
+	ls, found := m.setting[name]
+	if !found {
+		return nil, newError("Limiter ", name, " has no related setting.")
+	}
 	newError("create new limiter ", name).AtDebug().WriteToLog()
 	limiter := new(Limiter)
-	limiter.Set(rate, capacity)
+	limiter.Set(ls.rate, ls.capacity)
 	m.limiters[name] = limiter
 	return limiter, nil
 }

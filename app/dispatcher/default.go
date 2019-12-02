@@ -176,30 +176,19 @@ func (d *DefaultDispatcher) getLink(ctx context.Context) (*transport.Link, *tran
 				}
 			}
 		}
-		if l := ratelimit.GetLimiter(d.ratelimit, "user:"+user.Email+":uplink"); l != nil {
-			inboundLink.Writer = &LimitWriter{
-				Limiter: l,
-				Writer:  inboundLink.Writer,
-			}
-		} else if l := ratelimit.GetLimiter(d.ratelimit, "inboundTag:"+inboundTag+":uplink"); l != nil {
+
+		if l, _ := ratelimit.RequireLimiter(d.ratelimit, user.Email, inboundTag, true); l != nil {
 			inboundLink.Writer = &LimitWriter{
 				Limiter: l,
 				Writer:  inboundLink.Writer,
 			}
 		}
-
-		if l := ratelimit.GetLimiter(d.ratelimit, "user:"+user.Email+":downlink"); l != nil {
-			outboundLink.Writer = &LimitWriter{
-				Limiter: l,
-				Writer:  outboundLink.Writer,
-			}
-		} else if l := ratelimit.GetLimiter(d.ratelimit, "inboundTag:"+inboundTag+":downlink"); l != nil {
+		if l, _ := ratelimit.RequireLimiter(d.ratelimit, user.Email, inboundTag, false); l != nil {
 			outboundLink.Writer = &LimitWriter{
 				Limiter: l,
 				Writer:  outboundLink.Writer,
 			}
 		}
-
 	}
 
 	return inboundLink, outboundLink
