@@ -17,21 +17,42 @@ type Limiter interface {
 type Manager interface {
 	features.Feature
 
-	RegisterLimiter(string, float64, int64) (Limiter, error)
+	RegisterLimiter(string) (Limiter, error)
 	GetLimiter(string) Limiter
 }
 
-func GetLimiter(m Manager, name string) Limiter {
-	return m.GetLimiter(name)
+func RequireLimiter(m Manager, userEmail string, inboundTag string, isUp bool) (Limiter, error) {
+	userLimiterName := "user:" + userEmail
+	userWildLimiterName := "user:*"
+	inboundTagLimiterName := "inboundTag:" + inboundTag
+	var limiterNameTail string
+	if isUp {
+		limiterNameTail = ":uplink"
+	} else {
+		limiterNameTail = ":downlink"
+	}
+	userLimiterName += limiterNameTail
+	userWildLimiterName += limiterNameTail
+	inboundTagLimiterName += limiterNameTail
+	if l, err := getOrRegisterLimiter(m, userLimiterName); l != nil {
+		return l, err
+	}
+	if l, err := getOrRegisterLimiter(m, userWildLimiterName); l != nil {
+		return l, err
+	}
+	if l, err := getOrRegisterLimiter(m, inboundTagLimiterName); l != nil {
+		return l, err
+	}
+	return nil, newError("no related limiter found.")
 }
 
-func GetOrRegisterLimiter(m Manager, name string, rate float64, capacity int64) (Limiter, error) {
+func getOrRegisterLimiter(m Manager, name string) (Limiter, error) {
 	limiter := m.GetLimiter(name)
 	if limiter != nil {
 		return limiter, nil
 	}
 
-	return m.RegisterLimiter(name, rate, capacity)
+	return m.RegisterLimiter(name)
 }
 
 func ManagerType() interface{} {

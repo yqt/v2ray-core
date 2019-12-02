@@ -75,11 +75,9 @@ func NewManager(ctx context.Context, config *Config) (*Manager, error) {
 				}
 				limiterName := "user:" + userEmail + ":uplink"
 				m.addSetting(limiterName, float64(upRate), upCapacity)
-				//m.RegisterLimiter(limiterName, float64(upRate), upCapacity)
 
 				limiterName = "user:" + userEmail + ":downlink"
 				m.addSetting(limiterName, float64(downRate), downCapacity)
-				//m.RegisterLimiter(limiterName, float64(downRate), downCapacity)
 			}
 		}
 		if len(rule.GetInboundTag()) != 0 {
@@ -90,12 +88,10 @@ func NewManager(ctx context.Context, config *Config) (*Manager, error) {
 				if upRate > 0 {
 					limiterName := "inboundTag:" + inboundTag + ":uplink"
 					m.addSetting(limiterName, float64(upRate), upCapacity)
-					//m.RegisterLimiter(limiterName, float64(upRate), upCapacity)
 				}
 				if downRate > 0 {
 					limiterName := "inboundTag:" + inboundTag + ":downlink"
 					m.addSetting(limiterName, float64(downRate), downCapacity)
-					//m.RegisterLimiter(limiterName, float64(downRate), downCapacity)
 				}
 			}
 		}
